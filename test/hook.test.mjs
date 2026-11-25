@@ -1,32 +1,39 @@
 /**
  * Hook tests: what the assistant speaks for a given utterance, using a stub
- * engine that records speech instead of talking to the speaker.
+ * engine that records speech and a fake streaming endpoint that records the
+ * requests sent to the model.
  */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { onMessage } from "../src/hook.js";
-import { useTestVocabulary } from "./fixtures.mjs";
+import { clearHistory } from "../src/speech.js";
+import { requests, setFakeReply, useFakeLLM, useTestPrompt, useTestVocabulary } from "./fixtures.mjs";
 
 useTestVocabulary(["冷气", "音响"]);
+useFakeLLM();
 
 /** Speech recorded by the stub engine. */
 const spoken = [];
 
+test.beforeEach(() => {
+  spoken.length = 0;
+  clearHistory();
+  requests.length = 0;
+});
+
 /**
  * Creates a stub engine.
  *
- * @param {string} [reply]
  * @returns {object}
  */
-function makeEngine(reply = "AI 回答") {
-  return {
-    config: { openai: { baseURL: "https://api.deepseek.com" } },
+function makeEngine() {
+  return useTestPrompt({
+    config: { openai: { baseURL: "https://api.deepseek.com", model: "test-model" } },
     speaker: { play: async ({ text }) => spoken.push(text) },
     MiOT: { doAction: async (a, b, text) => spoken.push(`[fallback]${text}`) },
-    askAI: async (msg) => ({ text: `${reply}: ${msg.text}` }),
-  };
+  });
 }
 
 /**
@@ -67,7 +74,6 @@ test("native operations stay silent", async () => {
 });
 
 test("echo of a previous reply is ignored", async () => {
-  spoken.length = 0;
   await onMessage(makeEngine(), { text: "测试回声" });
   const replay = await onMessage(makeEngine(), { text: "AI 回答: 测试回声" });
   assert.equal(replay?.handled, true);
@@ -82,8 +88,140 @@ test("TTS failure falls back to MIoT.doAction", async () => {
   assert.equal(await speak("测试回退", broken), "[fallback]AI 回答: 测试回退");
 });
 
-test("an empty LLM answer is not spoken", async () => {
-  const engine = makeEngine();
-  engine.askAI = async () => ({ text: "  " });
-  assert.equal(await speak("今天几号", engine), undefined);
+test("an empty LLM answer is not spoken", async (t) => {
+  t.after(setFakeReply(""));
+  assert.equal(await speak("今天几号"), undefined);
 });
+
+test("barge-in filler is spoken while the LLM is thinking", async () => {
+  const engine = makeEngine();
+  engine.config.bargeInText = "嗯";
+  assert.equal(await speak("今天几号", engine), "嗯|AI 回答: 今天几号");
+});
+
+test("device commands are not interrupted", async () => {
+  const engine = makeEngine();
+  engine.config.bargeInText = "嗯";
+  assert.equal(await speak("打开空调", engine), undefined);
+});
+
+test("without a filler nothing is interrupted", async () => {
+  const engine = makeEngine();
+  engine.config.bargeInText = "";
+  assert.equal(await speak("今天几号", engine), "AI 回答: 今天几号");
+});
+
+test("the request is sent before the barge-in filler is played", async () => {
+  const events = [];
+  const restore = useFakeLLM({ onRequest: () => events.push("request") });
+  const engine = makeEngine();
+  engine.config.bargeInText = "嗯";
+  engine.speaker.play = async ({ text }) => {
+    events.push(`play:${text}`);
+    return true;
+  };
+  try {
+    await onMessage(engine, { text: "今天几号" });
+  } finally {
+    restore();
+  }
+  assert.equal(events[0], "request", events.join(","));
+});
+
+test("the filler does not poison the echo guard", async () => {
+  const engine = makeEngine();
+  engine.config.bargeInText = "嗯";
+  await onMessage(engine, { text: "今天几号" });
+
+  // The filler was spoken but not remembered, so repeating it is a real
+  // utterance and must still get an answer.
+  assert.equal(await speak("嗯"), "AI 回答: 嗯");
+});
+
+test("the wake phrase alone is ignored", async () => {
+  assert.equal(await speak("小爱同学"), undefined);
+  assert.equal(await speak("小爱同学。"), undefined);
+  assert.equal(await speak("喂，小爱！"), undefined);
+});
+
+test("a request after the wake phrase is answered without it", async () => {
+  assert.equal(await speak("小爱同学，今天几号"), "AI 回答: 今天几号");
+});
+
+test("a device command after the wake phrase stays silent", async () => {
+  assert.equal(await speak("小爱同学，打开空调"), undefined);
+});
+
+test("a streamed answer is spoken sentence by sentence", async (t) => {
+  t.after(setFakeReply("今天天气不错。我们出去玩吧！"));
+  assert.deepEqual(await speakAsArray("讲讲天气"), ["今天天气不错。", "我们出去玩吧！"]);
+});
+
+test("markdown and emoji are removed before speaking", async (t) => {
+  t.after(setFakeReply("**晚上好**😀呀"));
+  assert.equal(await speak("现在几点"), "晚上好呀");
+});
+
+test("the prompt template is rendered for the current turn", async () => {
+  await speak("今天几号");
+  const system = requests.at(-1)?.body.messages[0];
+  assert.equal(system?.role, "system");
+  assert.match(system.content, /用户说：今天几号/);
+  assert.match(system.content, /时间：\d/);
+});
+
+test("history from earlier turns reaches the template", async () => {
+  await speak("第一条");
+  await speak("第二条");
+  const system = requests.at(-1)?.body.messages[0];
+  assert.match(system?.content ?? "", /用户：第一条/);
+});
+
+test("history is sent as messages when the template has no placeholder", async () => {
+  const engine = makeEngine();
+  engine.config.promptTemplate = { path: "test/prompt.md", template: "只回答问题。" };
+  await speak("第一条", engine);
+  await speak("第二条", engine);
+  const messages = requests.at(-1)?.body.messages ?? [];
+  assert.deepEqual(
+    messages.map((message) => message.role),
+    ["system", "user", "assistant", "user"],
+  );
+});
+
+test("history keeps only the configured number of turns", async () => {
+  const engine = makeEngine();
+  engine.config.promptTemplate = { path: "test/prompt.md", template: "只回答问题。" };
+  engine.config.context.historyTurns = 1;
+  await speak("第一条", engine);
+  await speak("第二条", engine);
+  await speak("第三条", engine);
+  const messages = requests.at(-1)?.body.messages ?? [];
+  assert.deepEqual(
+    messages.map((message) => message.content),
+    ["只回答问题。", "第二条", "AI 回答: 第二条", "第三条"],
+  );
+});
+
+test("a failing request is reported to the user", async () => {
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("network down");
+  };
+  try {
+    assert.equal(await speak("今天几号"), "抱歉，我这边出了点问题，请稍后再说一次吧");
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
+/**
+ * Runs an utterance and returns the spoken pieces in order.
+ *
+ * @param {string} text
+ * @returns {Promise<string[]>}
+ */
+async function speakAsArray(text) {
+  await speak(text);
+  return [...spoken];
+}

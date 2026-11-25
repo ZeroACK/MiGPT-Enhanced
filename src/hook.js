@@ -10,14 +10,16 @@
  *
  * 1. empty text — nothing to do.
  * 2. echo of our own playback — ignore (loop guard).
- * 3. fixed phrases — answer verbatim.
- * 4. native operation (device control, media) — stay silent, the speaker did it.
- * 5. everything else — ask the LLM and speak the answer.
+ * 3. wake phrase only ("小爱同学") — ignore; the rest of the phrase, if any,
+ *    is what gets classified.
+ * 4. fixed phrases — answer verbatim.
+ * 5. native operation (device control, media) — stay silent, the speaker did it.
+ * 6. everything else — ask the LLM and speak the answer.
  */
 
 import { FIXED_REPLIES, WELCOME_BACK_PHRASE, WELCOME_BACK_REPLY } from "./replies.js";
-import { classifyRoute } from "./router.js";
-import { answerWithAI, isEcho, say } from "./speech.js";
+import { classifyRoute, stripWakeWord } from "./router.js";
+import { answerWithAI, cancelResponse, isEcho, say } from "./speech.js";
 
 /** @typedef {import("./types.js").Engine} Engine */
 /** @typedef {import("./types.js").Message} Message */
@@ -38,23 +40,50 @@ export async function onMessage(engine, msg) {
     return { handled: true };
   }
 
-  const fixed = FIXED_REPLIES[text];
+  // A real utterance means the user has moved on: stop the answer that is
+  // still streaming or being spoken. Echoes are excluded above, otherwise the
+  // assistant would interrupt itself while talking.
+  cancelResponse();
+
+  // Waking the speaker up is not a question. Strip the phrase; when nothing
+  // remains, stay silent instead of letting the LLM answer "小爱同学".
+  const request = stripWakeWord(text);
+  if (!request) {
+    console.log(`[migpt] ignore wake word: ${text}`);
+    return { handled: true };
+  }
+  const effective =
+    request === text ? msg : /** @type {Message} */ ({ ...msg, text: request });
+
+  const fixed = FIXED_REPLIES[request];
   if (fixed) {
     await say(engine, fixed);
     return { handled: true };
   }
-  if (text === WELCOME_BACK_PHRASE) {
+  if (request === WELCOME_BACK_PHRASE) {
     await say(engine, WELCOME_BACK_REPLY);
     return { handled: true };
   }
 
-  const route = classifyRoute(text);
+  const route = classifyRoute(request);
   if (route.handledBy === "native") {
-    console.log(`[migpt] native (${route.reason}): ${text}`);
+    console.log(`[migpt] native (${route.reason}): ${request}`);
     return { handled: true };
   }
 
-  console.log(`[migpt] llm (${route.reason}): ${text}`);
-  await answerWithAI(engine, msg);
+  console.log(`[migpt] llm (${route.reason}): ${request}`);
+
+  // Start the request before the filler, not after it: the TTS round trip would
+  // otherwise add a few hundred milliseconds to every answer. The filler is not
+  // added to the echo guard, because the user may repeat it.
+  const answering = answerWithAI(engine, effective);
+  const bargeInText = engine.config?.bargeInText;
+  try {
+    if (typeof bargeInText === "string" && bargeInText) {
+      await say(engine, bargeInText, { remember: false });
+    }
+  } finally {
+    await answering;
+  }
   return { handled: true };
 }
