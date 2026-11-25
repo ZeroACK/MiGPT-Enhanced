@@ -1,0 +1,22 @@
+{
+  "debug": false,
+  "speaker": {
+    "did": "你的小爱音箱名称",
+    "userId": "你的小米ID",
+    "password": "",
+    "passToken": "",
+    "heartbeat": 1000
+  },
+  "openai": {
+    "baseURL": "https://api.deepseek.com",
+    "apiKey": "sk-替换成你的密钥",
+    "model": "deepseek-v4-flash"
+  },
+  "prompt": {
+    "system": "你是一个语音智能助手，尽量简短、口语化地回答用户的问题。"
+  },
+  "context": {
+    "historyMaxLength": 10
+  },
+  "extraDeviceWords": []
+}
