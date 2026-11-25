@@ -17,6 +17,29 @@
 
 /** @typedef {OnMessageArgs[1]} Message */
 
-/** @typedef {MiGPTConfig & { extraDeviceWords?: string[] }} AppConfig */
+/**
+ * The parsed `config.json`: the library config plus the fields this project
+ * adds.
+ *
+ * - `extraDeviceWords` — extra spoken aliases for the routing vocabulary.
+ * - `bargeInText` — filler played to interrupt Xiaoai's native answer; empty or
+ *   missing disables the barge-in.
+ * - `promptFile` — path of the prompt template, relative to `config.json`.
+ * - `promptTemplate` — the loaded template, filled in by `main.js`.
+ * - `speech` — tuning of the playback pacing used while streaming.
+ * - `openai.params` — extra fields merged into the request body.
+ * - `context.historyTurns` — how many exchanges are kept and sent.
+ * - `context.vars` — extra placeholders available to the prompt template.
+ *
+ * @typedef {MiGPTConfig & {
+ *   extraDeviceWords?: string[],
+ *   bargeInText?: string,
+ *   promptFile?: string,
+ *   promptTemplate?: { path: string, template: string },
+ *   speech?: { leadUpMs?: number, msPerChar?: number },
+ *   openai?: { baseURL?: string, apiKey?: string, model?: string, params?: Record<string, unknown> },
+ *   context?: { historyTurns?: number, vars?: Record<string, string> },
+ * }} AppConfig
+ */
 
 export {};

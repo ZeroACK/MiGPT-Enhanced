@@ -5,18 +5,22 @@
     "userId": "你的小米ID",
     "password": "",
     "passToken": "",
-    "heartbeat": 1000
+    "heartbeat": 300
   },
+  "bargeInText": "嗯",
   "openai": {
     "baseURL": "https://api.deepseek.com",
     "apiKey": "sk-替换成你的密钥",
-    "model": "deepseek-v4-flash"
+    "model": "deepseek-v4-flash",
+    "params": {
+      "thinking": {
+        "type": "disabled"
+      }
+    }
   },
-  "prompt": {
-    "system": "你是一个语音智能助手，尽量简短、口语化地回答用户的问题。"
-  },
+  "promptFile": "prompt.md",
   "context": {
-    "historyMaxLength": 10
+    "historyTurns": 5
   },
   "extraDeviceWords": []
 }
