@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDeviceWords, classifyRoute, setDeviceWords } from "../src/router.js";
+import { buildDeviceWords, classifyRoute, setDeviceWords, stripWakeWord } from "../src/router.js";
 import { devices, useTestVocabulary } from "./fixtures.mjs";
 
 const words = useTestVocabulary(["冷气", "音响"]);
@@ -93,4 +93,24 @@ test("fallback vocabulary keeps basic device words", () => {
 test("fixture vocabulary is what the other tests expect", () => {
   assert.equal(devices.length, 9);
   assert.ok(words.size > 20);
+});
+
+test("the wake phrase is stripped from the request", () => {
+  assert.equal(stripWakeWord("小爱同学"), "");
+  assert.equal(stripWakeWord("小爱同学。"), "");
+  assert.equal(stripWakeWord("小爱"), "");
+  assert.equal(stripWakeWord("小爱小爱"), "");
+  assert.equal(stripWakeWord("喂，小爱！"), "");
+  assert.equal(stripWakeWord("小爱同学，今天几号"), "今天几号");
+  assert.equal(stripWakeWord("小爱同学 打开空调"), "打开空调");
+});
+
+test("a sentence that merely starts with 小爱 keeps its subject", () => {
+  assert.equal(stripWakeWord("小爱是什么"), "小爱是什么");
+  assert.equal(stripWakeWord("小爱同学能干什么"), "小爱同学能干什么");
+});
+
+test("a stripped wake phrase is classified like any other request", () => {
+  assert.equal(classifyRoute(stripWakeWord("小爱同学，今天几号")).handledBy, "llm");
+  assert.equal(classifyRoute(stripWakeWord("小爱同学，打开空调")).handledBy, "native");
 });

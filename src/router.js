@@ -204,6 +204,34 @@ function isMediaCommand(text) {
 }
 
 /**
+ * Leading wake phrase.
+ *
+ * The speaker logs the wake phrase itself as an utterance ("小爱同学"), and the
+ * routing vocabulary contains "小爱" as a speaker alias, so without this guard
+ * every wake-up would be answered as a conversation.
+ *
+ * The lookahead requires the wake word to stand alone or be followed by
+ * punctuation: "小爱是什么" keeps its subject and is still answered as a
+ * question, while "小爱同学，今天几号" keeps only the actual request.
+ */
+const WAKE_WORD_PREFIX = /^(?:喂|嗨|哎)?[，,、\s]*(?:小爱同学|小爱小爱|小爱)(?=[，,。.!！?？、\s]|$)/;
+
+/** Punctuation left over after the wake phrase, e.g. the comma in "小爱同学，…". */
+const WAKE_WORD_TRAILING = /^[，,。.!！?？、\s]+/;
+
+/**
+ * Removes a leading wake phrase.
+ *
+ * @param {string} text
+ * @returns {string} the remaining request, or `""` when the utterance was only
+ *   the wake phrase.
+ */
+export function stripWakeWord(text) {
+  if (!WAKE_WORD_PREFIX.test(text)) return text;
+  return text.replace(WAKE_WORD_PREFIX, "").replace(WAKE_WORD_TRAILING, "").trim();
+}
+
+/**
  * Decides who should answer an utterance.
  *
  * - `native` — the speaker can do it itself (device control or media), so
