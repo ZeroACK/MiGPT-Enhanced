@@ -24,6 +24,8 @@
  * - `extraDeviceWords` — extra spoken aliases for the routing vocabulary.
  * - `bargeInText` — filler played to interrupt Xiaoai's native answer; empty or
  *   missing disables the barge-in.
+ * - `dismissiveReply` — reply to a dismissal ("没事了", "退下吧"); empty keeps
+ *   the speaker silent. Dismissals are never sent to the model.
  * - `promptFile` — path of the prompt template, relative to `config.json`.
  * - `promptTemplate` — the loaded template, filled in by `main.js`.
  * - `speech` — tuning of the playback pacing used while streaming.
@@ -34,6 +36,7 @@
  * @typedef {MiGPTConfig & {
  *   extraDeviceWords?: string[],
  *   bargeInText?: string,
+  dismissiveReply?: string,
  *   promptFile?: string,
  *   promptTemplate?: { path: string, template: string },
  *   speech?: { leadUpMs?: number, msPerChar?: number },

@@ -61,6 +61,26 @@ test("fixed phrases keep their wording", async () => {
   assert.equal(await speak("我来了"), "太好了！你终于踏马来了，想死老子了");
 });
 
+test("dismissals are acknowledged without calling the model", async () => {
+  const cases = ["没事了", "没事", "退下吧", "算了", "没事啦", "不聊了", "小爱同学，没事了"];
+  for (const text of cases) {
+    const before = requests.length;
+    assert.equal(await speak(text), "好", text);
+    assert.equal(requests.length, before, `${text} must not reach the model`);
+  }
+});
+
+test("a dismissal inside a longer sentence still goes to the model", async () => {
+  assert.equal(await speak("我没事"), "AI 回答: 我没事");
+  assert.equal(await speak("没事是什么意思"), "AI 回答: 没事是什么意思");
+});
+
+test("the dismissive reply can be silenced", async () => {
+  const engine = makeEngine();
+  engine.config.dismissiveReply = "";
+  assert.equal(await speak("退下吧", engine), undefined);
+});
+
 test("conversation and questions are answered by the LLM", async () => {
   assert.equal(await speak("今天几号"), "AI 回答: 今天几号");
   assert.equal(await speak("查询电费"), "AI 回答: 查询电费");

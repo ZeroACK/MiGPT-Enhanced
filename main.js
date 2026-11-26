@@ -27,7 +27,11 @@ import { CONFIG_PATH, loadConfig } from "./src/config.js";
 import { runLoop, setupEngine } from "./src/engine.js";
 import { onMessage } from "./src/hook.js";
 import { DEVICE_REFRESH_MS, refreshInventory } from "./src/inventory.js";
+import { installLogFilter } from "./src/log.js";
 import { loadPrompt } from "./src/prompt.js";
+
+// Keep the journal ASCII-only (the Xiaomi library decorates its status lines).
+installLogFilter();
 
 const fileConfig = loadConfig();
 const promptTemplate = loadPrompt(fileConfig);
@@ -45,7 +49,7 @@ async function main() {
     `[migpt] prompt: ${promptTemplate.path} (${promptTemplate.template.length} chars, in memory)`,
   );
   await setupEngine(config);
-  console.log("✅ 服务已启动...");
+  console.log("[migpt] service started");
 
   // A failed refresh only degrades routing to the fallback word list, so it
   // must not stop the assistant.

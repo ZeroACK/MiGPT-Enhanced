@@ -12,6 +12,8 @@
  * I/O. `src/inventory.js` fills it from the device list.
  */
 
+import { AhoCorasick } from "./aho.js";
+
 /**
  * Chinese category words per MIoT model prefix. The prefix is stable across
  * firmware and account languages, while the device name is free text (and often
@@ -66,9 +68,51 @@ const FALLBACK_DEVICE_WORDS = [
   "亮度",
 ];
 
-/** Verbs that indicate the user wants something changed on a device. */
-const DEVICE_CONTROL_VERBS =
-  /(打开|关闭|开启|关掉|开一下|关一下|开机|关机|启动|停止|暂停|继续|恢复|调到|调成|调高|调低|调大|调小|设置|设为|切换到|静音|取消静音|定时|取消定时|倒计时|拉开|拉上|收起|放下|调亮|调暗|开|关)/;
+/**
+ * Verbs that indicate the user wants something changed on a device.
+ *
+ * @type {readonly string[]}
+ */
+const DEVICE_CONTROL_VERBS = [
+  "打开",
+  "关闭",
+  "开启",
+  "关掉",
+  "开一下",
+  "关一下",
+  "开机",
+  "关机",
+  "启动",
+  "停止",
+  "暂停",
+  "继续",
+  "恢复",
+  "调到",
+  "调成",
+  "调高",
+  "调低",
+  "调大",
+  "调小",
+  "设置",
+  "设为",
+  "切换到",
+  "静音",
+  "取消静音",
+  "定时",
+  "取消定时",
+  "倒计时",
+  "拉开",
+  "拉上",
+  "收起",
+  "放下",
+  "调亮",
+  "调暗",
+  "开",
+  "关",
+];
+
+/** Single-scan matcher for the control verbs, see `src/aho.js`. */
+const VERB_MATCHER = new AhoCorasick(DEVICE_CONTROL_VERBS);
 
 /** Polite openers stripped before looking for a command verb. */
 const POLITE_PREFIX = /^(请|麻烦)?(帮我|给我|我要|我想|来)?/;
@@ -76,6 +120,8 @@ const POLITE_PREFIX = /^(请|麻烦)?(帮我|给我|我要|我想|来)?/;
 /**
  * The speaker's own media commands. These never reach a device in the Mi Home
  * list, so they are matched without a device name.
+ *
+ * @type {readonly string[]}
  */
 const MEDIA_COMMANDS = [
   "播放",
@@ -105,19 +151,77 @@ const MEDIA_COMMANDS = [
   "小声点",
 ];
 
-/** Verb prefixes that are specific enough to be a command on their own. */
-const STRONG_VERB_PREFIX =
-  /^(打开|关闭|开启|关掉|开机|关机|调到|调成|调高|调低|调大|调小|切换到|静音|取消静音|音量|声音|播放|暂停|下一首|上一首)/;
+/** Matcher for media commands, used as an anchored prefix check. */
+const MEDIA_MATCHER = new AhoCorasick(MEDIA_COMMANDS);
+
+/**
+ * Verb prefixes that are specific enough to be a command on their own.
+ *
+ * @type {readonly string[]}
+ */
+const STRONG_VERB_PREFIXES = [
+  "打开",
+  "关闭",
+  "开启",
+  "关掉",
+  "开机",
+  "关机",
+  "调到",
+  "调成",
+  "调高",
+  "调低",
+  "调大",
+  "调小",
+  "切换到",
+  "静音",
+  "取消静音",
+  "音量",
+  "声音",
+  "播放",
+  "暂停",
+  "下一首",
+  "上一首",
+];
+
+/** Matcher for the strong verb prefixes, used as an anchored prefix check. */
+const STRONG_VERB_MATCHER = new AhoCorasick(STRONG_VERB_PREFIXES);
 
 /**
  * Interrogatives that ask for information rather than for an action. They win
  * over the device rules: "怎么关空调" is a question, "把空调关掉" is a command.
+ *
+ * @type {readonly string[]}
  */
-const INFO_QUESTION_WORDS =
-  /(为什么|为啥|怎么|如何|是什么|啥|谁|哪里|哪个|在哪|多少钱|几点|几号|多久|什么时候)/;
+const INFO_QUESTION_WORDS = [
+  "为什么",
+  "为啥",
+  "怎么",
+  "如何",
+  "是什么",
+  "啥",
+  "谁",
+  "哪里",
+  "哪个",
+  "在哪",
+  "多少钱",
+  "几点",
+  "几号",
+  "多久",
+  "什么时候",
+];
 
-/** Words that make a sentence a question, whether or not it asks for action. */
-const QUESTION_WORDS = /(吗|呢|多少|几个|是不是|有没有)/;
+/** Single-scan matcher for the informational interrogatives. */
+const INFO_QUESTION_MATCHER = new AhoCorasick(INFO_QUESTION_WORDS);
+
+/**
+ * Words that make a sentence a question, whether or not it asks for action.
+ *
+ * @type {readonly string[]}
+ */
+const QUESTION_WORDS = ["吗", "呢", "多少", "几个", "是不是", "有没有"];
+
+/** Single-scan matcher for the plain question words. */
+const QUESTION_MATCHER = new AhoCorasick(QUESTION_WORDS);
 
 /**
  * Device vocabulary currently in use.
@@ -125,6 +229,9 @@ const QUESTION_WORDS = /(吗|呢|多少|几个|是不是|有没有)/;
  * @type {Set<string>}
  */
 let deviceWords = new Set(FALLBACK_DEVICE_WORDS);
+
+/** Single-scan matcher for the device vocabulary, rebuilt on every refresh. */
+let deviceMatcher = new AhoCorasick(FALLBACK_DEVICE_WORDS);
 
 /**
  * Builds the vocabulary from a MIoT device list.
@@ -164,6 +271,7 @@ export function buildDeviceWords(devices, extraWords = []) {
  */
 export function setDeviceWords(words) {
   deviceWords = new Set(words);
+  deviceMatcher = new AhoCorasick(deviceWords);
 }
 
 /**
@@ -178,18 +286,14 @@ export function getDeviceWords() {
 /**
  * Returns the device word mentioned in the utterance, if any.
  *
+ * The automaton stops at the first word that completes ("打开客厅灯" stops at
+ * "灯"), so the scan length is the utterance length, not the vocabulary size.
+ *
  * @param {string} text
  * @returns {string | undefined}
  */
 function findDeviceWord(text) {
-  const lowered = text.toLowerCase();
-  let match;
-  for (const word of deviceWords) {
-    if (word && lowered.includes(word)) {
-      if (!match || word.length > match.length) match = word;
-    }
-  }
-  return match;
+  return deviceMatcher.matchFirst(text.toLowerCase())?.pattern;
 }
 
 /**
@@ -200,7 +304,7 @@ function findDeviceWord(text) {
  */
 function isMediaCommand(text) {
   const stripped = text.replace(POLITE_PREFIX, "");
-  return MEDIA_COMMANDS.some((command) => stripped.startsWith(command));
+  return MEDIA_MATCHER.matchPrefix(stripped) !== undefined;
 }
 
 /**
@@ -250,24 +354,24 @@ export function classifyRoute(text) {
   }
 
   // "怎么关空调" mentions a device and a verb, but asks for instructions.
-  if (INFO_QUESTION_WORDS.test(text)) {
+  if (INFO_QUESTION_MATCHER.has(text)) {
     return { handledBy: "llm", reason: "informational question" };
   }
 
   const deviceWord = findDeviceWord(text);
   if (deviceWord) {
-    if (DEVICE_CONTROL_VERBS.test(text)) {
+    if (VERB_MATCHER.has(text)) {
       return { handledBy: "native", reason: `device "${deviceWord}"` };
     }
     return { handledBy: "llm", reason: `device "${deviceWord}" without a command verb` };
   }
 
-  if (QUESTION_WORDS.test(text)) {
+  if (QUESTION_MATCHER.has(text)) {
     return { handledBy: "llm", reason: "question" };
   }
 
   const stripped = text.replace(POLITE_PREFIX, "");
-  if (STRONG_VERB_PREFIX.test(stripped) && stripped.length <= 12) {
+  if (STRONG_VERB_MATCHER.matchPrefix(stripped) !== undefined && stripped.length <= 12) {
     return { handledBy: "native", reason: "bare device command" };
   }
 

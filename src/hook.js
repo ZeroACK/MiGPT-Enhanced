@@ -13,11 +13,18 @@
  * 3. wake phrase only ("小爱同学") — ignore; the rest of the phrase, if any,
  *    is what gets classified.
  * 4. fixed phrases — answer verbatim.
- * 5. native operation (device control, media) — stay silent, the speaker did it.
- * 6. everything else — ask the LLM and speak the answer.
+ * 5. dismissals ("没事了", "退下吧") — short acknowledgement, no model call.
+ * 6. native operation (device control, media) — stay silent, the speaker did it.
+ * 7. everything else — ask the LLM and speak the answer.
  */
 
-import { FIXED_REPLIES, WELCOME_BACK_PHRASE, WELCOME_BACK_REPLY } from "./replies.js";
+import {
+  DISMISSIVE_REPLY,
+  FIXED_REPLIES,
+  WELCOME_BACK_PHRASE,
+  WELCOME_BACK_REPLY,
+  isDismissive,
+} from "./replies.js";
 import { classifyRoute, stripWakeWord } from "./router.js";
 import { answerWithAI, cancelResponse, isEcho, say } from "./speech.js";
 
@@ -62,6 +69,15 @@ export async function onMessage(engine, msg) {
   }
   if (request === WELCOME_BACK_PHRASE) {
     await say(engine, WELCOME_BACK_REPLY);
+    return { handled: true };
+  }
+
+  // "没事了" / "退下吧" is not a question: acknowledge briefly and stay out of
+  // the model's way. An empty `dismissiveReply` keeps the speaker silent.
+  if (isDismissive(request)) {
+    console.log(`[migpt] dismissive: ${request}`);
+    const reply = engine.config?.dismissiveReply ?? DISMISSIVE_REPLY;
+    if (typeof reply === "string" && reply) await say(engine, reply);
     return { handled: true };
   }
 

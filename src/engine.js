@@ -111,6 +111,6 @@ export async function runLoop(config) {
  */
 export async function startEngine(config) {
   await setupEngine(config);
-  console.log("✅ 服务已启动...");
+  console.log("[migpt] service started");
   await runLoop(config);
 }

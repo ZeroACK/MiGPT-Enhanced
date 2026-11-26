@@ -42,6 +42,8 @@ export const CONFIG_PATH = process.env.MIGPT_CONFIG
  * - `bargeInText` — filler spoken as soon as an utterance that needs an LLM
  *   answer is detected, so Xiaoai's native answer is cut off while the request
  *   is in flight. Empty or missing disables the barge-in.
+ * - `dismissiveReply` — answer to "没事了" / "退下吧" & co. No model call is
+ *   made for those utterances; an empty string makes the speaker stay silent.
  * - `openai.baseURL` — OpenAI-compatible endpoint, a bare host such as
  *   `https://api.deepseek.com` or a URL ending in `/v1`; it must not include
  *   `/chat/completions`.
@@ -89,6 +91,9 @@ export function loadConfig() {
   }
   if (parsed.bargeInText !== undefined && typeof parsed.bargeInText !== "string") {
     throw new Error(`${CONFIG_PATH}: "bargeInText" must be a string`);
+  }
+  if (parsed.dismissiveReply !== undefined && typeof parsed.dismissiveReply !== "string") {
+    throw new Error(`${CONFIG_PATH}: "dismissiveReply" must be a string`);
   }
   if (parsed.promptFile !== undefined && typeof parsed.promptFile !== "string") {
     throw new Error(`${CONFIG_PATH}: "promptFile" must be a string`);

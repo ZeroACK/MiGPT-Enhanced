@@ -8,6 +8,7 @@
     "heartbeat": 300
   },
   "bargeInText": "嗯",
+  "dismissiveReply": "好",
   "openai": {
     "baseURL": "https://api.deepseek.com",
     "apiKey": "sk-替换成你的密钥",
