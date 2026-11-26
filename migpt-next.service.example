@@ -1,0 +1,50 @@
+# Copy this file to migpt-next.service, replace <your-user> and
+# /path/to/migpt-next, then install it:
+#
+#   cp migpt-next.service.example migpt-next.service
+#   sudo cp migpt-next.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now migpt-next
+#
+# The deployed migpt-next.service is ignored by git (it contains the local
+# user name and paths).
+
+[Unit]
+# MiGPT-Next：让小爱音箱接入大模型（DeepSeek）
+Description=MiGPT-Next (Xiaoai Speaker AI Assistant)
+Documentation=https://github.com/idootop/migpt-next
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# 以当前登录用户身份运行（.mi.json 登录缓存也写在该目录下）
+User=<your-user>
+Group=<your-user>
+
+# 必须设置为项目目录：小米账号缓存文件 .mi.json 会写在这里
+WorkingDirectory=/path/to/migpt-next
+
+# 启动命令，使用绝对路径（systemd 不读取 shell 的 PATH）
+ExecStart=/usr/bin/node /path/to/migpt-next/main.js
+
+# 异常退出后自动重启
+Restart=always
+RestartSec=5
+
+# 停止时先发 SIGTERM，main.js 中会调用 MiGPT.stop() 优雅退出
+KillSignal=SIGTERM
+TimeoutStopSec=20
+KillMode=mixed
+
+# 日志交给 journald，使用 `journalctl -u migpt-next -f` 查看
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=migpt-next
+
+# 基础安全加固
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

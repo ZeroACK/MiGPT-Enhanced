@@ -180,7 +180,11 @@ node main.js         # 前台运行，Ctrl+C 退出
 
 ## 作为 systemd 服务
 
+仓库只带模板 `migpt-next.service.example`，实际的 unit 文件（含本机用户名与路径）被 `.gitignore` 忽略。
+
 ```bash
+cp migpt-next.service.example migpt-next.service
+# 编辑 migpt-next.service：把 <your-user> 和 /path/to/migpt-next 换成你的
 sudo cp migpt-next.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now migpt-next

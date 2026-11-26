@@ -4,6 +4,7 @@ node_modules/
 # Local settings and secrets
 config.json
 .mi.json
+migpt-next.service
 *.pem
 *.key
 
