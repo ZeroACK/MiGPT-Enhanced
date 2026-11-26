@@ -17,12 +17,19 @@ test("model prefixes contribute category words", () => {
   }
 });
 
-test("device names are indexed, split and lowercased", () => {
+test("device names are indexed and lowercased", () => {
   assert.ok(words.has("客厅摄像头"));
   assert.ok(words.has("客厅电视"));
-  assert.ok(words.has("tv"));
-  assert.ok(words.has("device"));
+  assert.ok(words.has("客厅音箱"));
   for (const word of words) assert.equal(word, word.toLowerCase());
+});
+
+test("mixed names are split into their parts", () => {
+  const built = buildDeviceWords([{ name: "Living-Room TV", model: "xiaomi.tv.mih1" }]);
+  assert.ok(built.has("living-room tv"));
+  assert.ok(built.has("living"));
+  assert.ok(built.has("room"));
+  assert.ok(built.has("tv"));
 });
 
 test("user aliases are merged", () => {

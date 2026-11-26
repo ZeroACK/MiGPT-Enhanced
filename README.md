@@ -78,7 +78,7 @@
 [migpt] config: ~/migpt-next/config.json
 [migpt] prompt: ~/migpt-next/prompt.md (618 chars, in memory)
 [migpt] polling every 300ms
-[migpt] routing vocabulary: 31 words (客厅摄像头, 卧室摄像头, 客厅电视, …)
+[migpt] routing vocabulary: 23 words (客厅摄像头, 摄像头, 监控, 客厅电视, …)
 [migpt] service started
 ```
 
@@ -96,8 +96,8 @@ cp config.example.json config.json && chmod 600 config.json
 {
   "debug": false,
   "speaker": {
-    "did": "客厅音箱",        // 米家里的小爱音箱名称
-    "userId": "123456789",     // 小米 ID，必填（同时作为登录 cookie）
+    "did": "你的小爱音箱名称",   // 米家里的小爱音箱名称
+    "userId": "你的小米ID",      // 小米 ID，必填（同时作为登录 cookie）
     "password": "",             // 可空：passToken 失效时才用到
     "passToken": "V1:...",      // 长期登录令牌，优先使用
     "heartbeat": 300            // 轮询间隔 ms，最低 300，越快抢答越及时
@@ -173,9 +173,9 @@ node main.js         # 前台运行，Ctrl+C 退出
 ```
 [migpt] config: ~/migpt-next/config.json
 [migpt] prompt: ~/migpt-next/prompt.md (618 chars, in memory)
-✅ 服务已启动...
-[migpt] routing vocabulary: 31 words (客厅摄像头、摄像头、监控、…)
+[migpt] routing vocabulary: 23 words (客厅摄像头, 摄像头, 监控, 客厅电视, …)
 [migpt] polling every 300ms
+[migpt] service started
 ```
 
 ## 作为 systemd 服务

@@ -246,7 +246,7 @@ export function buildDeviceWords(devices, extraWords = []) {
     const name = (device.name ?? "").trim().toLowerCase();
     if (name) {
       words.add(name);
-      // Split mixed names such as "客厅电视" into their parts.
+      // Split mixed names such as "Living-Room TV" into their parts.
       for (const part of name.split(/[^0-9a-z\u4e00-\u9fa5]+/)) {
         if (part.length >= 2) words.add(part);
       }

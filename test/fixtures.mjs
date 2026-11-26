@@ -1,9 +1,9 @@
 /**
  * Fixtures shared by the tests.
  *
- * The device list mirrors this deployment's real Mi Home inventory, including
- * the MIoT model strings, so the vocabulary assertions exercise the same
- * model-prefix mapping the live service uses.
+ * A representative Mi Home inventory: one speaker, one TV, lights, a camera and
+ * the usual accessories. The MIoT model strings are real, so the vocabulary
+ * assertions exercise the same model-prefix mapping the live service uses.
  */
 
 import { buildDeviceWords, setDeviceWords } from "../src/router.js";
